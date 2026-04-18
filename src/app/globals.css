@@ -127,4 +127,10 @@
   html {
     @apply font-sans;
   }
+  html, body {
+    font-size: 14px;
+    font-family: var(--font-inter), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background-color: #F4F5F7;
+    color: #172B4D;
+  }
 }
