@@ -24,6 +24,15 @@ export default async function BoardPage({
     .eq("project_id", id)
     .order("position");
 
+  const columnIds = (columns ?? []).map((c) => c.id);
+  const { data: tasks } =
+    columnIds.length === 0
+      ? { data: [] as { id: string; column_id: string; title: string; description: string | null; priority: string; label: string | null; position: number }[] }
+      : await supabase
+          .from("tasks")
+          .select("id, column_id, title, description, priority, label, position")
+          .in("column_id", columnIds);
+
   return (
     <main className="mx-auto max-w-[1400px] p-4">
       <nav className="mb-3 text-xs text-muted-foreground">
@@ -31,7 +40,11 @@ export default async function BoardPage({
         <span className="mx-1">/</span>
         <span className="text-neutral-700">{project.name}</span>
       </nav>
-      <BoardStatic projectId={project.id} columns={columns ?? []} />
+      <BoardStatic
+        projectId={project.id}
+        columns={columns ?? []}
+        tasks={tasks ?? []}
+      />
     </main>
   );
 }
