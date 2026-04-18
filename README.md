@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# my-jira
 
-## Getting Started
+Personal Kanban board. Next.js 16 (App Router), Tailwind v4, shadcn/ui, Supabase (Postgres + Auth), dnd-kit.
 
-First, run the development server:
+## Local setup
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+1. `cp .env.local.example .env.local` and fill in `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` from the Supabase project.
+2. `npm install`
+3. `npm run dev` → http://localhost:3000
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Database
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Migrations live in `supabase/migrations/`. Apply them either via Supabase CLI (`npx supabase db push`) or by pasting the SQL into the Supabase SQL Editor.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The schema covers:
 
-## Learn More
+- `projects` — owner-scoped via RLS (`owner_id = auth.uid()`)
+- `board_columns` — per project, with `is_default` flag protecting the three seeded columns (`To Do`, `In Progress`, `Done`). A trigger seeds them on project insert; another trigger blocks `DELETE` when `is_default = true`.
+- `tasks` — per column, with `updated_at` trigger and `position double precision` for drag-drop reordering via midpoint math.
 
-To learn more about Next.js, take a look at the following resources:
+## Creating users
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Sign-up is disabled. Create users manually from the Supabase dashboard:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**Authentication → Users → Add user** (tick "Auto-confirm user").
 
-## Deploy on Vercel
+Then **Authentication → Providers → Email** and disable "Enable sign ups".
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Auth redirect URLs
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Add the following under **Authentication → URL Configuration → Redirect URLs**:
+
+- `http://localhost:3000/auth/callback`
+- `https://my-board.aralabs.com.br/auth/callback`
+
+## Deploy (Vercel)
+
+1. Push this repo to GitHub.
+2. Import the repo in Vercel.
+3. Set environment variables:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+4. Deploy.
+5. **Settings → Domains** → add `my-board.aralabs.com.br`. Update your aralabs.com.br DNS with the CNAME Vercel provides.
+
+## Stack
+
+- Next.js 16.2 (App Router, Server Actions)
+- React 19.2, TypeScript
+- Tailwind CSS v4, shadcn/ui (base-ui under the hood)
+- `@supabase/ssr`, `@supabase/supabase-js`
+- `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`
+- `sonner`, `lucide-react`
