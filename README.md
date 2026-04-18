@@ -4,7 +4,7 @@ Personal Kanban board. Next.js 16 (App Router), Tailwind v4, shadcn/ui, Supabase
 
 ## Local setup
 
-1. `cp .env.local.example .env.local` and fill in `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` from the Supabase project.
+1. `cp .env.local.example .env.local` and fill in `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` from the Supabase project.
 2. `npm install`
 3. `npm run dev` → http://localhost:3000
 
@@ -39,7 +39,7 @@ Add the following under **Authentication → URL Configuration → Redirect URLs
 2. Import the repo in Vercel.
 3. Set environment variables:
    - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 4. Deploy.
 5. **Settings → Domains** → add `my-board.aralabs.com.br`. Update your aralabs.com.br DNS with the CNAME Vercel provides.
 
