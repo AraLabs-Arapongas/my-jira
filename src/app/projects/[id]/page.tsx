@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { BoardStatic } from "@/components/board/board-static";
+import { Board } from "./board";
 
 export default async function BoardPage({
   params,
@@ -25,13 +25,22 @@ export default async function BoardPage({
     .order("position");
 
   const columnIds = (columns ?? []).map((c) => c.id);
-  const { data: tasks } =
-    columnIds.length === 0
-      ? { data: [] as { id: string; column_id: string; title: string; description: string | null; priority: string; label: string | null; position: number }[] }
-      : await supabase
-          .from("tasks")
-          .select("id, column_id, title, description, priority, label, position")
-          .in("column_id", columnIds);
+  let tasks: Array<{
+    id: string;
+    column_id: string;
+    title: string;
+    description: string | null;
+    priority: "low" | "medium" | "high";
+    label: string | null;
+    position: number;
+  }> = [];
+  if (columnIds.length > 0) {
+    const { data } = await supabase
+      .from("tasks")
+      .select("id, column_id, title, description, priority, label, position")
+      .in("column_id", columnIds);
+    tasks = data ?? [];
+  }
 
   return (
     <main className="mx-auto max-w-[1400px] p-4">
@@ -40,10 +49,10 @@ export default async function BoardPage({
         <span className="mx-1">/</span>
         <span className="text-neutral-700">{project.name}</span>
       </nav>
-      <BoardStatic
+      <Board
         projectId={project.id}
-        columns={columns ?? []}
-        tasks={tasks ?? []}
+        initialColumns={columns ?? []}
+        initialTasks={tasks}
       />
     </main>
   );

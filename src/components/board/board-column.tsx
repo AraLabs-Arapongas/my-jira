@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { MoreHorizontal, Plus } from "lucide-react";
+import { useSortable, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { useDroppable } from "@dnd-kit/core";
+import { GripVertical, MoreHorizontal, Plus } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -9,63 +12,36 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ColumnFormDialog } from "./column-form-dialog";
 import { TaskCard, type TaskRow } from "./task-card";
-import { TaskDialog } from "./task-dialog";
 import { createTask, deleteColumn } from "@/app/projects/[id]/actions";
 import { toast } from "sonner";
+import type { ColumnRow } from "@/app/projects/[id]/board";
 
-export type ColumnRow = {
-  id: string;
-  name: string;
-  position: number;
-  is_default: boolean;
-};
-
-export function BoardStatic({
-  projectId,
-  columns,
-  tasks,
+export function SortableTaskCard({
+  task,
+  onClick,
 }: {
-  projectId: string;
-  columns: ColumnRow[];
-  tasks: TaskRow[];
+  task: TaskRow;
+  onClick: () => void;
 }) {
-  const [openTask, setOpenTask] = useState<TaskRow | null>(null);
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: task.id,
+    data: { type: "task", task },
+  });
+  const style = { transform: CSS.Transform.toString(transform), transition };
 
   return (
-    <>
-      <div className="flex gap-3 overflow-x-auto pb-4">
-        {columns.map((c) => (
-          <Column
-            key={c.id}
-            projectId={projectId}
-            column={c}
-            tasks={tasks.filter((t) => t.column_id === c.id).sort((a, b) => a.position - b.position)}
-            onTaskClick={setOpenTask}
-          />
-        ))}
-        <ColumnFormDialog
-          mode="create"
-          projectId={projectId}
-          trigger={
-            <Button variant="outline" className="h-10 shrink-0 self-start bg-white/60">
-              <Plus className="mr-1 size-4" /> New column
-            </Button>
-          }
-        />
-      </div>
-      {openTask && (
-        <TaskDialog
-          projectId={projectId}
-          task={openTask}
-          open
-          onOpenChange={(o) => !o && setOpenTask(null)}
-        />
-      )}
-    </>
+    <div ref={setNodeRef} style={style}>
+      <TaskCard
+        task={task}
+        onClick={onClick}
+        dragHandleProps={{ ...attributes, ...listeners }}
+        isDragging={isDragging}
+      />
+    </div>
   );
 }
 
-function Column({
+export function BoardColumn({
   projectId,
   column,
   tasks,
@@ -76,9 +52,24 @@ function Column({
   tasks: TaskRow[];
   onTaskClick: (t: TaskRow) => void;
 }) {
+  const {
+    attributes, listeners, setNodeRef, transform, transition, isDragging,
+  } = useSortable({ id: column.id, data: { type: "column", column } });
+
+  const { setNodeRef: setDroppableRef } = useDroppable({
+    id: `column-drop-${column.id}`,
+    data: { type: "column-drop", columnId: column.id },
+  });
+
   const [pending, startTransition] = useTransition();
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  };
 
   function onDelete() {
     if (!confirm(`Delete column "${column.name}"?`)) return;
@@ -103,12 +94,26 @@ function Column({
   }
 
   return (
-    <div className="flex w-[280px] shrink-0 flex-col rounded-md bg-[#EBECF0] p-2">
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex w-[280px] shrink-0 flex-col rounded-md bg-[#EBECF0] p-2"
+    >
       <div className="mb-2 flex items-center justify-between px-1">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-600">
-          {column.name}
-          <span className="ml-2 font-normal text-neutral-500">{tasks.length}</span>
-        </h3>
+        <div className="flex items-center gap-1">
+          <button
+            {...attributes}
+            {...listeners}
+            className="cursor-grab text-neutral-400 hover:text-neutral-600 active:cursor-grabbing"
+            aria-label="Drag column"
+          >
+            <GripVertical className="size-3.5" />
+          </button>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-600">
+            {column.name}
+            <span className="ml-2 font-normal text-neutral-500">{tasks.length}</span>
+          </h3>
+        </div>
         <DropdownMenu>
           <DropdownMenuTrigger className="rounded p-1 hover:bg-neutral-200" aria-label="Column actions">
             <MoreHorizontal className="size-4" />
@@ -133,26 +138,21 @@ function Column({
         </DropdownMenu>
       </div>
 
-      <div className="flex min-h-[40px] flex-col gap-2">
-        {tasks.map((t) => (
-          <TaskCard key={t.id} task={t} onClick={() => onTaskClick(t)} />
-        ))}
+      <div ref={setDroppableRef} className="flex min-h-[40px] flex-col gap-2">
+        <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+          {tasks.map((t) => (
+            <SortableTaskCard key={t.id} task={t} onClick={() => onTaskClick(t)} />
+          ))}
+        </SortableContext>
       </div>
 
       {adding ? (
         <form onSubmit={onAdd} className="mt-2 space-y-2">
-          <Input
-            autoFocus
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Task title"
-          />
+          <Input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Task title" />
           <div className="flex gap-2">
             <Button type="submit" size="sm" disabled={pending}>Add</Button>
             <Button
-              type="button"
-              size="sm"
-              variant="ghost"
+              type="button" size="sm" variant="ghost"
               onClick={() => { setAdding(false); setTitle(""); }}
             >
               Cancel
