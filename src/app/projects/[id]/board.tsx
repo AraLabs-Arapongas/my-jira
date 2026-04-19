@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import {
   DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor,
   closestCorners, useSensor, useSensors,
@@ -8,14 +8,20 @@ import {
 import {
   arrayMove, SortableContext, horizontalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { Plus } from "lucide-react";
+import { Layers, Plus, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BoardColumn } from "@/components/board/board-column";
 import { ColumnFormDialog } from "@/components/board/column-form-dialog";
-import { TaskCard, type TaskRow } from "@/components/board/task-card";
+import { CsvImportDialog } from "@/components/board/csv-import-dialog";
+import { EpicsDialog } from "@/components/board/epics-dialog";
+import { TaskCard, type EpicRow, type TaskRow } from "@/components/board/task-card";
 import { TaskDialog } from "@/components/board/task-dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { moveTask, reorderColumns } from "./actions";
 import { midpoint } from "@/lib/utils/position";
+import { epicTone } from "@/lib/utils/epic-color";
 import { toast } from "sonner";
 
 export type ColumnRow = {
@@ -29,16 +35,36 @@ export function Board({
   projectId,
   initialColumns,
   initialTasks,
+  initialEpics,
 }: {
   projectId: string;
   initialColumns: ColumnRow[];
   initialTasks: TaskRow[];
+  initialEpics: EpicRow[];
 }) {
   const [columns, setColumns] = useState(initialColumns);
   const [tasks, setTasks] = useState(initialTasks);
+  const [epics, setEpics] = useState(initialEpics);
   const [openTask, setOpenTask] = useState<TaskRow | null>(null);
   const [activeTask, setActiveTask] = useState<TaskRow | null>(null);
+  const [epicFilter, setEpicFilter] = useState<string>("all"); // "all" | "none" | epicId
   const [, startTransition] = useTransition();
+
+  useEffect(() => setColumns(initialColumns), [initialColumns]);
+  useEffect(() => setTasks(initialTasks), [initialTasks]);
+  useEffect(() => setEpics(initialEpics), [initialEpics]);
+
+  const epicsById = useMemo(() => {
+    const m = new Map<string, EpicRow>();
+    for (const e of epics) m.set(e.id, e);
+    return m;
+  }, [epics]);
+
+  const visibleTasks = useMemo(() => {
+    if (epicFilter === "all") return tasks;
+    if (epicFilter === "none") return tasks.filter((t) => !t.epic_id);
+    return tasks.filter((t) => t.epic_id === epicFilter);
+  }, [tasks, epicFilter]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -60,7 +86,6 @@ export function Board({
     const activeType = active.data.current?.type;
     const overType = over.data.current?.type;
 
-    // Column reorder
     if (activeType === "column" && overType === "column" && active.id !== over.id) {
       const oldIndex = columns.findIndex((c) => c.id === active.id);
       const newIndex = columns.findIndex((c) => c.id === over.id);
@@ -70,13 +95,12 @@ export function Board({
         const res = await reorderColumns(projectId, next.map((c) => c.id));
         if (!res.ok) {
           toast.error(res.error);
-          setColumns(columns); // revert
+          setColumns(columns);
         }
       });
       return;
     }
 
-    // Task move (drop on a task OR on a column's droppable area)
     if (activeType === "task") {
       const draggedId = active.id as string;
       const dragged = tasks.find((t) => t.id === draggedId);
@@ -91,7 +115,7 @@ export function Board({
         insertBeforeTaskId = overTask.id;
       } else if (overType === "column-drop") {
         targetColumnId = over.data.current!.columnId as string;
-        insertBeforeTaskId = null; // drop at end
+        insertBeforeTaskId = null;
       } else {
         return;
       }
@@ -111,7 +135,6 @@ export function Board({
       }
 
       const newPosition = midpoint(prev?.position ?? null, next?.position ?? null);
-
       const prevState = tasks;
       setTasks((ts) =>
         ts.map((t) =>
@@ -131,6 +154,53 @@ export function Board({
 
   return (
     <>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Epic</span>
+          <Select value={epicFilter} onValueChange={(v) => setEpicFilter(v ?? "all")}>
+            <SelectTrigger className="h-8 w-[180px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="none">No epic</SelectItem>
+              {epics.map((e) => {
+                const t = epicTone(e.color);
+                return (
+                  <SelectItem key={e.id} value={e.id}>
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        className="inline-block size-2.5 rounded-full"
+                        style={{ backgroundColor: t.dot }}
+                      />
+                      {e.name}
+                    </span>
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2">
+          <EpicsDialog
+            projectId={projectId}
+            epics={epics}
+            trigger={
+              <Button variant="outline" size="sm">
+                <Layers className="mr-1 size-4" /> Epics
+              </Button>
+            }
+          />
+          <CsvImportDialog
+            projectId={projectId}
+            columns={columns}
+            epics={epics}
+            trigger={
+              <Button variant="outline" size="sm">
+                <Upload className="mr-1 size-4" /> Import CSV
+              </Button>
+            }
+          />
+        </div>
+      </div>
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
@@ -144,9 +214,10 @@ export function Board({
                 key={c.id}
                 projectId={projectId}
                 column={c}
-                tasks={tasks
+                tasks={visibleTasks
                   .filter((t) => t.column_id === c.id)
                   .sort((a, b) => a.position - b.position)}
+                epicsById={epicsById}
                 onTaskClick={setOpenTask}
               />
             ))}
@@ -161,13 +232,21 @@ export function Board({
             }
           />
         </div>
-        <DragOverlay>{activeTask && <TaskCard task={activeTask} />}</DragOverlay>
+        <DragOverlay>
+          {activeTask && (
+            <TaskCard
+              task={activeTask}
+              epic={activeTask.epic_id ? epicsById.get(activeTask.epic_id) : null}
+            />
+          )}
+        </DragOverlay>
       </DndContext>
 
       {openTask && (
         <TaskDialog
           projectId={projectId}
           task={openTask}
+          epics={epics}
           open
           onOpenChange={(o) => !o && setOpenTask(null)}
         />

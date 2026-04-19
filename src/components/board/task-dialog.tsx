@@ -13,16 +13,21 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { updateTask, deleteTask } from "@/app/projects/[id]/actions";
-import type { TaskRow } from "./task-card";
+import type { EpicRow, TaskRow } from "./task-card";
+import { epicTone } from "@/lib/utils/epic-color";
+
+const NO_EPIC = "__none__";
 
 export function TaskDialog({
   projectId,
   task,
+  epics,
   open,
   onOpenChange,
 }: {
   projectId: string;
   task: TaskRow;
+  epics: EpicRow[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -30,6 +35,7 @@ export function TaskDialog({
   const [description, setDescription] = useState(task.description ?? "");
   const [priority, setPriority] = useState<TaskRow["priority"]>(task.priority);
   const [label, setLabel] = useState(task.label ?? "");
+  const [epicId, setEpicId] = useState<string>(task.epic_id ?? NO_EPIC);
   const [pending, startTransition] = useTransition();
 
   async function onSave(e: React.FormEvent) {
@@ -40,6 +46,7 @@ export function TaskDialog({
         description,
         priority,
         label,
+        epic_id: epicId === NO_EPIC ? null : epicId,
       });
       if (!res.ok) {
         toast.error(res.error);
@@ -79,7 +86,7 @@ export function TaskDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="t-priority">Priority</Label>
-              <Select value={priority} onValueChange={(v) => setPriority(v as TaskRow["priority"])}>
+              <Select value={priority} onValueChange={(v) => setPriority((v ?? "medium") as TaskRow["priority"])}>
                 <SelectTrigger id="t-priority"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="low">Low</SelectItem>
@@ -92,6 +99,29 @@ export function TaskDialog({
               <Label htmlFor="t-label">Label</Label>
               <Input id="t-label" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. bug" />
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="t-epic">Epic</Label>
+            <Select value={epicId} onValueChange={(v) => setEpicId(v ?? NO_EPIC)}>
+              <SelectTrigger id="t-epic"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_EPIC}>— None —</SelectItem>
+                {epics.map((e) => {
+                  const t = epicTone(e.color);
+                  return (
+                    <SelectItem key={e.id} value={e.id}>
+                      <span className="inline-flex items-center gap-2">
+                        <span
+                          className="inline-block size-2.5 rounded-full"
+                          style={{ backgroundColor: t.dot }}
+                        />
+                        {e.name}
+                      </span>
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
           </div>
           <DialogFooter className="flex justify-between sm:justify-between">
             <Button type="button" variant="destructive" onClick={onDelete} disabled={pending}>

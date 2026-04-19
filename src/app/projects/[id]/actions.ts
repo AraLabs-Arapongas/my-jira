@@ -115,6 +115,7 @@ export async function updateTask(
     description?: string | null;
     priority?: "low" | "medium" | "high";
     label?: string | null;
+    epic_id?: string | null;
   },
 ): Promise<Result> {
   if (patch.title !== undefined && !patch.title.trim()) {
@@ -135,9 +136,99 @@ export async function updateTask(
   return { ok: true };
 }
 
+// ---- Epics ----
+
+export async function createEpic(
+  projectId: string,
+  name: string,
+  color: string,
+): Promise<Result> {
+  if (!name.trim()) return { ok: false, error: "Name is required" };
+  const supabase = await createClient();
+  const { error } = await supabase.from("epics").insert({
+    project_id: projectId,
+    name: name.trim(),
+    color,
+  });
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/projects/${projectId}`);
+  return { ok: true };
+}
+
+export async function updateEpic(
+  projectId: string,
+  id: string,
+  patch: { name?: string; color?: string },
+): Promise<Result> {
+  if (patch.name !== undefined && !patch.name.trim()) {
+    return { ok: false, error: "Name cannot be empty" };
+  }
+  const cleaned: Record<string, unknown> = { ...patch };
+  if (typeof cleaned.name === "string") cleaned.name = (cleaned.name as string).trim();
+  const supabase = await createClient();
+  const { error } = await supabase.from("epics").update(cleaned).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/projects/${projectId}`);
+  return { ok: true };
+}
+
+export async function deleteEpic(projectId: string, id: string): Promise<Result> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("epics").delete().eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/projects/${projectId}`);
+  return { ok: true };
+}
+
 export async function deleteTask(projectId: string, id: string): Promise<Result> {
   const supabase = await createClient();
   const { error } = await supabase.from("tasks").delete().eq("id", id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/projects/${projectId}`);
+  return { ok: true };
+}
+
+export async function createTasksBulk(
+  projectId: string,
+  columnId: string,
+  rows: Array<{
+    title: string;
+    description?: string | null;
+    priority?: "low" | "medium" | "high";
+    label?: string | null;
+    epic_id?: string | null;
+  }>,
+): Promise<Result> {
+  const clean = rows
+    .map((r) => ({
+      title: (r.title ?? "").trim(),
+      description: r.description?.trim() || null,
+      priority: r.priority ?? "medium",
+      label: r.label?.trim() || null,
+      epic_id: r.epic_id ?? null,
+    }))
+    .filter((r) => r.title.length > 0);
+
+  if (clean.length === 0) return { ok: false, error: "No valid rows" };
+
+  const supabase = await createClient();
+
+  const { data: maxRow } = await supabase
+    .from("tasks")
+    .select("position")
+    .eq("column_id", columnId)
+    .order("position", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  let pos = maxRow?.position ?? 0;
+  const payload = clean.map((r) => {
+    pos = midpoint(pos, null);
+    return { column_id: columnId, ...r, position: pos };
+  });
+
+  const { error } = await supabase.from("tasks").insert(payload);
   if (error) return { ok: false, error: error.message };
 
   revalidatePath(`/projects/${projectId}`);

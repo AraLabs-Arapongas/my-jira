@@ -3,6 +3,7 @@
 import { ChevronDown, Minus, ChevronUp } from "lucide-react";
 import type { HTMLAttributes } from "react";
 import { labelColor } from "@/lib/utils/label-color";
+import { epicTone } from "@/lib/utils/epic-color";
 
 export type TaskRow = {
   id: string;
@@ -12,6 +13,13 @@ export type TaskRow = {
   priority: "low" | "medium" | "high";
   label: string | null;
   position: number;
+  epic_id: string | null;
+};
+
+export type EpicRow = {
+  id: string;
+  name: string;
+  color: string;
 };
 
 const priorityIcon = {
@@ -22,28 +30,50 @@ const priorityIcon = {
 
 export function TaskCard({
   task,
+  epic,
   onClick,
   dragHandleProps,
   isDragging,
 }: {
   task: TaskRow;
+  epic?: EpicRow | null;
   onClick?: () => void;
   dragHandleProps?: HTMLAttributes<HTMLDivElement>;
   isDragging?: boolean;
 }) {
-  const colors = task.label ? labelColor(task.label) : null;
+  const labelColors = task.label ? labelColor(task.label) : null;
+  const tone = epic ? epicTone(epic.color) : null;
+
+  const style = tone
+    ? {
+        backgroundColor: tone.bg,
+        borderColor: tone.border,
+        borderWidth: 1,
+        borderLeftWidth: 4,
+      }
+    : undefined;
+
   return (
     <div
       {...dragHandleProps}
       onClick={onClick}
-      className={`cursor-grab rounded border border-neutral-200 bg-white p-2 text-[13px] shadow-sm transition hover:shadow-md active:cursor-grabbing ${
-        isDragging ? "opacity-50" : ""
-      }`}
+      style={style}
+      className={`cursor-grab rounded p-2 text-[13px] shadow-sm transition hover:shadow-md active:cursor-grabbing ${
+        tone ? "border-solid" : "border border-neutral-200 bg-white"
+      } ${isDragging ? "opacity-50" : ""}`}
     >
-      {task.label && colors && (
+      {epic && tone && (
         <span
-          className="mb-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide"
-          style={{ backgroundColor: colors.bg, color: colors.fg }}
+          className="mb-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+          style={{ backgroundColor: tone.chipBg, color: tone.chipFg }}
+        >
+          {epic.name}
+        </span>
+      )}
+      {task.label && labelColors && (
+        <span
+          className="mb-1 ml-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide"
+          style={{ backgroundColor: labelColors.bg, color: labelColors.fg }}
         >
           {task.label}
         </span>

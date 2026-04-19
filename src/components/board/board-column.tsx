@@ -11,16 +11,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ColumnFormDialog } from "./column-form-dialog";
-import { TaskCard, type TaskRow } from "./task-card";
+import { TaskCard, type EpicRow, type TaskRow } from "./task-card";
 import { createTask, deleteColumn } from "@/app/projects/[id]/actions";
 import { toast } from "sonner";
 import type { ColumnRow } from "@/app/projects/[id]/board";
 
 export function SortableTaskCard({
   task,
+  epic,
   onClick,
 }: {
   task: TaskRow;
+  epic?: EpicRow | null;
   onClick: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -33,6 +35,7 @@ export function SortableTaskCard({
     <div ref={setNodeRef} style={style}>
       <TaskCard
         task={task}
+        epic={epic}
         onClick={onClick}
         dragHandleProps={{ ...attributes, ...listeners }}
         isDragging={isDragging}
@@ -45,11 +48,13 @@ export function BoardColumn({
   projectId,
   column,
   tasks,
+  epicsById,
   onTaskClick,
 }: {
   projectId: string;
   column: ColumnRow;
   tasks: TaskRow[];
+  epicsById: Map<string, EpicRow>;
   onTaskClick: (t: TaskRow) => void;
 }) {
   const {
@@ -141,7 +146,12 @@ export function BoardColumn({
       <div ref={setDroppableRef} className="flex min-h-[40px] flex-col gap-2">
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.map((t) => (
-            <SortableTaskCard key={t.id} task={t} onClick={() => onTaskClick(t)} />
+            <SortableTaskCard
+              key={t.id}
+              task={t}
+              epic={t.epic_id ? epicsById.get(t.epic_id) : null}
+              onClick={() => onTaskClick(t)}
+            />
           ))}
         </SortableContext>
       </div>

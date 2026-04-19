@@ -24,6 +24,12 @@ export default async function BoardPage({
     .eq("project_id", id)
     .order("position");
 
+  const { data: epics } = await supabase
+    .from("epics")
+    .select("id, name, color")
+    .eq("project_id", id)
+    .order("created_at");
+
   const columnIds = (columns ?? []).map((c) => c.id);
   let tasks: Array<{
     id: string;
@@ -33,11 +39,12 @@ export default async function BoardPage({
     priority: "low" | "medium" | "high";
     label: string | null;
     position: number;
+    epic_id: string | null;
   }> = [];
   if (columnIds.length > 0) {
     const { data } = await supabase
       .from("tasks")
-      .select("id, column_id, title, description, priority, label, position")
+      .select("id, column_id, title, description, priority, label, position, epic_id")
       .in("column_id", columnIds);
     tasks = data ?? [];
   }
@@ -53,6 +60,7 @@ export default async function BoardPage({
         projectId={project.id}
         initialColumns={columns ?? []}
         initialTasks={tasks}
+        initialEpics={epics ?? []}
       />
     </main>
   );
